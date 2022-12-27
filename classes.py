@@ -1,20 +1,7 @@
 import requests
 from abc import ABC, abstractmethod
-# import json
-
-
-class Vacancy:
-    class Vacancy:
-        __slots__ = ('name', 'link', 'description', 'salary')
-
-        def __init__(self, name, link, description, salary):
-            self.name = name
-            self.link = link
-            self.description = description
-            self.salary = salary
-
-        def __str__(self):
-            return f'{self.name} - {self.link}\n{self.description}\n{self.salary}'
+from connector import Connector
+import json
 
 
 class Engine(ABC):
@@ -25,7 +12,8 @@ class Engine(ABC):
     @staticmethod
     def get_connector(file_name):
         """ Возвращает экземпляр класса Connector """
-        pass
+        exemplar = Connector(file_name)
+        return exemplar
 
 
 class HH(Engine):
@@ -78,21 +66,136 @@ class SuperJob(Engine):
         return result
 
 
-# if __name__ == '__main__':
-    # sj_engine = SuperJob()
-    # key_word = 'kotlin'
-    # vacancies_count = 100
-    #
-    # sj_res = sj_engine.get_request(key_word, vacancies_count)
-#     hh_engine = HH()
-#     key_word = 'kotlin'
-#     vacancies_count = 100
-#     res = hh_engine.get_request(key_word, vacancies_count)
-#
-    # with open('sj_res.json', 'w', encoding='utf-8') as res_file:
-    #     json.dump(sj_res, res_file)
-#
-#     with open('res.json', 'r', encoding='utf-8') as res_file:
-#         res_data = json.load(res_file)
-#         for item in res_data:
-#             print(f"{item.get('name')}, {item.get('salary')}, {item['area'].get('name')}")
+class Vacancy:
+    class_name = 'Vacancy'
+    __slots__ = ('name', 'link', 'salary')
+
+    def __init__(self, name, link, salary):
+        self.name = name
+        self.link = link
+        self.salary = salary
+        self.class_name = Vacancy.class_name
+
+    def salary_check(self, other):
+        if not self.salary:
+            self.salary = 0
+        if not other.salary:
+            other.salary = 0
+        return self.salary, other.salary
+
+    def __repr__(self):
+        if self.salary:
+            return f"{self.class_name}: {self.company_name}, зарплата: {self.salary} руб/мес"
+        else:
+            return f"{self.class_name}: {self.company_name}, зарплата: нет данных"
+
+    def __eq__(self, other):
+        self.salary_check(other)
+        return self.salary == other.salary
+
+    def __ne__(self, other):
+        self.salary_check(other)
+        return self.salary != other.salary
+
+    def __gt__(self, other):
+        self.salary_check(other)
+        return self.salary > other.salary
+
+    def __ge__(self, other):
+        self.salary_check(other)
+        return self.salary >= other.salary
+
+    def __lt__(self, other):
+        self.salary_check(other)
+        return self.salary < other.salary
+
+    def __le__(self, other):
+        self.salary_check(other)
+        return self.salary <= other.salary
+
+    def __iter__(self):
+        self.current_index = 0
+        return self
+
+    def __next__(self):
+        if self.current_index < len(HHVacancy.hh_vacancies):
+            x = HHVacancy.hh_vacancies[self.current_index]
+            self.current_index += 1
+            return x
+        else:
+            raise StopIteration
+
+
+class CounterMixin:
+    """
+    Вернуть количество вакансий от текущего сервиса.
+    Получать количество необходимо динамически из файла.
+    """
+    @property
+    def get_count_of_vacancy(self):
+        with open(self.data_file, 'r') as f:
+            data = json.load(f)
+        return len(data)
+
+
+class HHVacancy(CounterMixin, Vacancy):
+    """ HeadHunter Vacancy """
+    hh_vacancies = []
+    class_name = 'HH'
+    data_file = 'hh_res.json'
+
+    def __init__(self, name, link, salary, company_name):
+        super().__init__(name, link, salary)
+        self.company_name = company_name
+        self.class_name = HHVacancy.class_name
+        self.data_file = HHVacancy.data_file
+
+    @classmethod
+    def read_data(cls, data_file):
+        with open(f'{data_file}') as f:
+            data = json.load(f)
+            for elem in data:
+                for i in elem:
+                    name = i.get('name')
+                    link = i.get('url')
+                    try:
+                        if i.get('salary').get('currency') == 'USD':
+                            salary = i.get('salary').get('from') * 70
+                        elif i.get('salary').get('currency') == 'EUR':
+                            salary = i.get('salary').get('from') * 75
+                        else:
+                            salary = i.get('salary').get('from')
+                    except (AttributeError, TypeError):
+                        salary = 0
+                    company_name = i.get('employer').get('name')
+
+                    cls.hh_vacancies.append(HHVacancy(name, link, salary, company_name))
+
+
+class SJVacancy(CounterMixin, Vacancy):
+    """ SuperJob Vacancy """
+    sj_vacancies = []
+    class_name = 'SJ'
+    data_file = 'sj_res.json'
+
+    def __init__(self, name, link, salary, company_name):
+        super().__init__(name, link, salary)
+        self.company_name = company_name
+        self.class_name = SJVacancy.class_name
+        self.data_file = SJVacancy.data_file
+
+    @classmethod
+    def read_data(cls, data_file):
+        with open(f'{data_file}') as f:
+            data = json.load(f)
+            for elem in data:
+                for i in elem:
+                    name = i.get('profession')
+                    link = i.get('link')
+                    try:
+                        salary = i.get('payment_from')
+                    except (AttributeError, TypeError):
+                        salary = 0
+                    company_name = i.get('firm_name')
+
+                    cls.sj_vacancies.append(SJVacancy(name, link, salary, company_name))

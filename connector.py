@@ -1,6 +1,5 @@
-import json
-import logging
 import os
+import json
 
 
 class Connector:
@@ -11,9 +10,6 @@ class Connector:
     """
     __data_file = None
 
-    def __init__(self, data_file):
-        self.__data_file = data_file
-
     @property
     def data_file(self):
         return self.__data_file
@@ -23,26 +19,31 @@ class Connector:
         self.__data_file = value
         self.__connect()
 
+    def __init__(self, df):
+        self.__data_file = df
+        self.__connect()
+
     def __connect(self):
         """
         Проверка на существование файла с данными и
         создание его при необходимости
         """
-        try:
-            if self.__data_file not in os.listdir('.'):
-                with open(self.__data_file, 'w') as file:
-                    json.dump([], file)
-        except Exception as ex:
-            logging.critical(ex)
-        return self.__data_file
+        if self.__data_file not in os.listdir('.'):
+            with open(self.__data_file, 'w') as file:
+                json.dump([], file)
+        else:
+            return self.__data_file
 
     def insert(self, data):
         """
         Запись данных в файл с сохранением структуры и исходных данных
         """
-        with open(self.__data_file, 'r+') as f:
-            json.dump(data, f)
-        return self.__data_file
+        with open(self.__data_file, 'r') as f:
+            files = json.load(f)
+            files.append(data)
+
+        with open(self.__data_file, 'w') as f:
+            json.dump(files, f)
 
     def select(self, query):
         """
@@ -53,33 +54,30 @@ class Connector:
         и вернуть все строки, в которых цена 1000
         """
 
-        data_from_file = {}
-        with open(self.__data_file, 'r+') as file:
+        data_in_file = []
+        with open(self.__data_file, 'r', encoding='utf-8') as file:
             data = json.load(file)
-            if not query:
-                return [data]
-            for d in data:
-                for k, v in query.items():
-                    if d[k] == v:
-                        data_from_file.update(d)
-        return data_from_file
+
+        if not query:
+            return data
+
+        for d in data:
+            for k, v in query.items():
+                if d[k] == v:
+                    data_in_file.append(d)
+        return data_in_file
 
     def delete(self, query):
         """
         Удаление записей из файла, которые соответствуют запрос,
         как в методе select
         """
-        try:
-            with open(self.__data_file, 'r') as f:
-                data = json.loads(f.read())
+        with open('df.json', 'r') as f:
+            data = json.load(f)
 
-            with open(self.__data_file, 'w') as f:
-                result = None
+        with open('df.json', 'w') as f:
+            result = None
 
-                for key in query.keys():
-                    result = [*filter(lambda el: el[key] != query[key], result if result else data)]
-
-                json.dump(result, f)
-
-        except Exception as ex:
-            logging.critical(ex)
+            for key in query.keys():
+                result = [*filter(lambda el: el[key] != query[key], result if result else data)]
+            json.dump(result, f)
